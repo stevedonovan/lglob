@@ -196,10 +196,9 @@ without `package.seeall` becomes less problematic.
     end
 
     $ lglob better.lua
-    lglob: better.lua:2: undefined get module
     lglob: better.lua:5: undefined get print
 
-Disregarding the first warning, we see that `print` is not visible, because it
+We see that `print` is not visible _after_ `module()`, because it
 isn't inside the module environment. lglob's `-gd` (for 'global definitions')
 helps here; it prints out the local definitions you need to insert at the
 top of your module:
@@ -247,15 +246,46 @@ By the way, it's still useful to use the output of `-gd` here, since it's useful
 documentation (readers can tell at a glance what libraries are used) and often
 leads to performance improvements.
 
+## Module Contents and -wl
+
+The `-d` flag dumps all exported contents of a module; the names are set to
+their linenumbers, which can be useful, and it is in the right format for
+whitelisting.
+
+    $ lglob -d old.lua
+    ["old"] = {
+        show = 4,
+        answer = 8,
+    }
+    $ lglob -x -d new.lua
+    ["new"] = {
+        one = 8,
+        two = 12,
+    }
+
+Note we need to pass `-x` for the 'new-style' module to be analyzed correctly.
+
+The tests directory has a full whitelist for the Penlight library, analysed with
+ `lglob -d -x -p pl *.lua`; the `-p` flag ensures that the entries go into the
+correct package.
+
+The `pltest.lua` file uses Penlight, but you don't need that library to be
+installed to check files that use it. Use the whitelist like so:
+
+    lglob -x -wl penlight.wlist pltest.lua
+
+`-wl` works like `-l` except that no actual code loading takes place; we look
+up the module in the special whitelist passed to this flag. (Unlike regular
+whitespaces its entries are not available unless there is a corresponding `require`)
+
 ## Further Work
 
 No program is ever finished (except perhaps `sed`) and there are some improvements
 I have in mind for lglob. I remarked that explicitly using `require` to load
 modules can be a problem; if you are working on an embedded system the modules
 may not be requirable, and loading a module may have important side-effects.
-
-So the next step is for lglob to generate whitelists from existing modules, and
-load from these whitelists rather than explicitly calling `require`.
+The `-d`flag is a start in that direction, but how this could be made more
+convenient is an open question.
 
 Local analysis remains experimental but has promise. For instance, it would be
 most useful to understand common class patterns and track instances of the

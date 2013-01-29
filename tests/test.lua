@@ -10,6 +10,7 @@ local cases = {
     {'lj.lua','-w luajava.wlist',true},
     {'localrequire.lua','-x',false},
     {'new.lua','-x',false},
+    {'pltest.lua','-x -wl penlight.wlist',true}
 }
 
 for _,case in ipairs(cases) do

@@ -20,8 +20,11 @@ usage: lglob [options]  <scripts>
     -w <file>, whitelist file containing symbol={entries..},
         which are added to _G.
     -wx <file> an _exclusive_ whitelist, may be nil for none.
+    -wl <file> whitelist used to resolve any require() calls
     -gl list global references with line numbers
     -gd generate locals for globals (e.g. 'local print=print')
+    -d dump module contents in whitelist format
+    -p <package> name to use for modules, if it is not explicit
     -x track local aliases to modules
     -luac <prog> set luac to use
     -dump diagnostic dump
@@ -322,6 +325,7 @@ local function getglobals(fh)
         if data.opname == 'LOADK' or data.opname == 'VARARG' then
             remarks.uses_module = true
             remarks.module_line = data.linenum
+            remarks.module_name = stripq(data.const)
             data = parse(fh:read())
             if data.opname == 'CALL' then
                 remarks.strict = true
@@ -427,8 +431,8 @@ end
 
 local whitelist = _G
 local globals_within_module, load_requires
-local tolerant, extra_whitelist = false, nil
-local luac, xlocal
+local tolerant, extra_whitelist,require_whitelist = false, nil, nil
+local luac, xlocal, pkg
 local MODSCOPE = {}
 
 local function process_file (file)
@@ -494,7 +498,35 @@ local function dump_requires (file)
     end
 end
 
-local function check_globals (file)
+local function splitname (name)
+    return name:match '^([^.]+)%.([^%.]+)$'
+end
+
+local last_pkg
+
+local function dump_module (name,entries)
+    local this_pkg
+    if not name:match '%.'  then
+        this_pkg = pkg
+    else
+        this_pkg,name = splitname(name)
+    end
+    if this_pkg and this_pkg ~= last_pkg then
+        io.write(pkg,' = {}\n')
+        last_pkg = this_pkg
+    end
+    local package = pkg and pkg..'.' or ''
+    io.write(package,name,' = {','\n')
+    for k,v in pairs(entries) do
+        local pkg,name = splitname(v.name)
+        name = name or v.name
+        io.write('    ',name,' = ',v.linenum,',\n')
+    end
+    io.write '}\n'
+    return true
+end
+
+local function check_globals (file, dump_entries)
     local ok = true
     local globals, requires, remarks = process_file(file)
     if not globals then return end -- failed, dammit!
@@ -511,10 +543,29 @@ local function check_globals (file)
         end
     end
 
+    local function add_inner_globals (wl,refs)
+        for k,v in pairs(globals) do if v.isset then
+            wl[v.name] = refs and v or MODSCOPE
+        end end
+    end
+
     if load_requires then -- any globals from require(mod) are ok
         for _,item in ipairs(requires) do
             if dump then print('requiring',item.module) end
-            local ok,mod = pcall(require,item.module)
+            local ok,mod
+            if require_whitelist then
+                local pkg,name = splitname(item.module)
+                local base = require_whitelist
+                if pkg then
+                    base = base[pkg]
+                else
+                    name = item.module
+                end
+                mod = base[name]
+                ok = mod ~= nil
+            else
+                ok,mod = pcall(require,item.module)
+            end
             if not ok then
                 stderr:write('warning: could not require "',item.module,'"\n')
             elseif item.alias then
@@ -524,37 +575,49 @@ local function check_globals (file)
         end
     end
 
-
     if remarks.simple_module then
         if dump then print('simple module:',remarks.simple_module) end
-        local modname,modt = remarks.simple_module
+        local modname,modt,entries = remarks.simple_module
         backup_whitelist()
-        modt = {}
+        modt, entries = {},{}
         -- module goes into whitelist as a table containing all module exports
         whitelist[modname] = modt
         for k,v in pairs(globals) do if v.isset then
             local name = v.name
-            local mod,entry = name:match '([^.]+)%.(.+)'
+            local mod,entry = splitname(name)
             if mod == modname then
                 modt[entry] = MODSCOPE
+                entries[entry] = v
             end
         end end
+        if dump_entries then
+            return dump_module(modname,entries)
+        end
     end
 
     local delayed_whitelist_clear
     if not tolerant and remarks.uses_module then
-        delayed_whitelist_clear = remarks.module_line
-    end
-
-    local function add_inner_globals ()
-        backup_whitelist()
-        for k,v in pairs(globals) do
-            if v.isset then whitelist[v.name] = MODSCOPE end
+        if not dump_entries then
+            if remarks.strict then
+                delayed_whitelist_clear = remarks.module_line
+            else
+                globals_within_module = true
+            end
+        else
+            local entries = {}
+            add_inner_globals(entries,true)
+            local name = remarks.module_name
+            if not name then
+                local basename = file:match '[^\\/]+$'
+                name = splitname(basename)
+            end
+            return dump_module(name or 'que?',entries)
         end
     end
 
     if globals_within_module then -- any global declares in file are ok
-        add_inner_globals()
+        backup_whitelist()
+        add_inner_globals(whitelist)
     end
 
     table.sort(globals, function(a,b) return a.linenum < b.linenum end)
@@ -564,7 +627,7 @@ local function check_globals (file)
         if delayed_whitelist_clear and v.linenum > delayed_whitelist_clear then
             backup_whitelist()
             whitelist = {}
-            add_inner_globals()
+            add_inner_globals(whitelist)
             delayed_whitelist_clear = nil
         end
         local found, found_root = rindex(whitelist, v.name)
@@ -589,7 +652,13 @@ if #args == 0 then quit 'must provide Lua files' end
 luac = args.luac or 'luac'
 dump = args.dump
 xlocal = args.x
-if xlocal then args.l = true end
+pkg = args.p
+
+if args.wl then
+    require_whitelist = assertq(evalfile(args.wl,{}))
+end
+
+if xlocal or args.wl then args.l = true end
 
 tolerant = args.t
 if tolerant then args.g = true; args.l = true end
@@ -625,7 +694,7 @@ for _,a in ipairs(args) do
     elseif args.rq then
         dump_requires (a)
     else
-        res = check_globals (a)
+        res = check_globals (a, args.d)
     end
     ok = ok and res
 end
