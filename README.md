@@ -59,13 +59,13 @@ them as well. The `-l` flag makes lglob load any required modules. Consider this
     print(lfs.changedir('foo'))
 
     $ lglob -l use-lfs.lula
-    globals: use-lfs.lua:9: undefined get lfs.changedir
+    lglob: use-lfs.lua:9: undefined get lfs.changedir
 
 This is the output if we leave out the `local` in front of the function:
 
-    globals: use-lfs.lua:4: undefined set getdir
-    globals: use-lfs.lua:8: undefined get getdir
-    globals: use-lfs.lua:9: undefined get lfs.changedir
+    lglob: use-lfs.lua:4: undefined set getdir
+    lglob: use-lfs.lua:8: undefined get getdir
+    lglob: use-lfs.lua:9: undefined get lfs.changedir
 
 lglob by default is strict about the use of globals - it sees both a set and a get
 of an unknown global. The `-g` flag makes it accept globals which have been set
@@ -83,9 +83,9 @@ lglob is strict about _redefining globals_:
     print(table.next)
 
     $ lglob monkey-patch.lua
-    globals: monkey-patch.lua:2: redefining global table.concat
-    globals: monkey-patch.lua:4: redefining global next
-    globals: monkey-patch.lua:6: undefined get table.next
+    lglob: monkey-patch.lua:2: redefining global table.concat
+    lglob: monkey-patch.lua:4: redefining global next
+    lglob: monkey-patch.lua:6: undefined get table.next
 
 It often feels convenient to 'monkey-patch' existing functions (and it appears
 that the Ruby community have given into the temptation wholesale)
@@ -142,7 +142,7 @@ A more modern version of the `lfs` example would be:
     print(lfs.changedir('foo'))
 
     $ lglob -x use-lfs-strictly.lua
-    globals: use-lfs-strictly.lua:9: undefined get lfs.changedir
+    lglob: use-lfs-strictly.lua:9: undefined get lfs.changedir
 
 No globals are used, except for the built-in `require` and `print` functions.
 This style will also work fine with both Lua 5.1 and 5.2.
@@ -196,8 +196,8 @@ without `package.seeall` becomes less problematic.
     end
 
     $ lglob better.lua
-    globals: better.lua:2: undefined get module
-    globals: better.lua:5: undefined get print
+    lglob: better.lua:2: undefined get module
+    lglob: better.lua:5: undefined get print
 
 Disregarding the first warning, we see that `print` is not visible, because it
 isn't inside the module environment. lglob's `-gd` (for 'global definitions')
@@ -238,7 +238,7 @@ avoid function environment magic - which is depreciated in Lua 5.2 anyway.
     return new
 
     $ lglob -x new.lua
-    globals: new.lua:13: undefined get new.fiddle_factor
+    lglob: new.lua:13: undefined get new.fiddle_factor
 
 The local aliasing done by `-x` also applies to the _current module_ (since even
 the supermen of code have bad days and can't spell their own functions)

@@ -13,7 +13,7 @@ local lua52 = _VERSION:match '5%.2$'
 local stderr = io.stderr
 
 local usage = [[
-usage: [options]  <scripts>
+usage: lglob [options]  <scripts>
     -t means "tolerant"; defined globals are ok (implies -g and -l)
     -g accept globals defined in a module
     -l call require() to track module exports
@@ -566,10 +566,10 @@ local function check_globals (file)
     for i,v in ipairs(globals) do
         local found, found_root = rindex(whitelist, v.name)
         if not (tolerant or found == MODSCOPE) and (found or found_root) and v.isset then
-            stderr:write('globals: ',file,':',v.linenum,': redefining global ',v.name,'\n')
+            stderr:write('lglob: ',file,':',v.linenum,': redefining global ',v.name,'\n')
             ok = false
         elseif not found then
-            stderr:write('globals: ',file,':',v.linenum,': undefined ',v.isset and 'set' or 'get',' ',v.name,'\n')
+            stderr:write('lglob: ',file,':',v.linenum,': undefined ',v.isset and 'set' or 'get',' ',v.name,'\n')
             ok = false
         end
     end

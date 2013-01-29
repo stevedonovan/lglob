@@ -15,5 +15,5 @@ end
 
 return new
 
---~ globals: new.lua:13: undefined get new.fiddle_factor
+--~ lglob: new.lua:13: undefined get new.fiddle_factor
 

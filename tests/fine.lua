@@ -5,8 +5,8 @@ for i,a in pairs(arg) do
     print(i,string.upper(a))
 end
 
---~ globals: fine.lua:4: undefined get pairs
---~ globals: fine.lua:4: undefined get arg
---~ globals: fine.lua:5: undefined get string
---~ globals: fine.lua:5: undefined get print
---~ globals: fine.lua:5: undefined get string.upper
+--~ lglob: fine.lua:4: undefined get pairs
+--~ lglob: fine.lua:4: undefined get arg
+--~ lglob: fine.lua:5: undefined get string
+--~ lglob: fine.lua:5: undefined get print
+--~ lglob: fine.lua:5: undefined get string.upper

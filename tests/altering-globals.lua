@@ -15,6 +15,6 @@ end
 
 print(table.next)
 
---~ globals: altering-globals.lua:5: redefining global table.concat
---~ globals: altering-globals.lua:7: redefining global next
---~ globals: altering-globals.lua:16: undefined get table.next
+--~ lglob: altering-globals.lua:5: redefining global table.concat
+--~ lglob: altering-globals.lua:7: redefining global next
+--~ lglob: altering-globals.lua:16: undefined get table.next

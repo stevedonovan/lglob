@@ -12,9 +12,9 @@ end
 
 print(socket.connect,socket.open)
 
---~ globals: localrequire.lua:6: undefined get lfs.curdir
---~ globals: localrequire.lua:10: undefined get lfs.changedir
---~ globals: localrequire.lua:13: undefined get socket.open
+--~ lglob: localrequire.lua:6: undefined get lfs.curdir
+--~ lglob: localrequire.lua:10: undefined get lfs.changedir
+--~ lglob: localrequire.lua:13: undefined get socket.open
 
 
 
