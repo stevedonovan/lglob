@@ -321,7 +321,7 @@ local function getglobals(fh)
         -- is this a 'strict' module or not? (Doesn't use package.seeall)
         if data.opname == 'LOADK' or data.opname == 'VARARG' then
             remarks.uses_module = true
-            remarks.module_line = data.idx
+            remarks.module_line = data.linenum
             data = parse(fh:read())
             if data.opname == 'CALL' then
                 remarks.strict = true
@@ -541,29 +541,32 @@ local function check_globals (file)
         end end
     end
 
+    local delayed_whitelist_clear
     if not tolerant and remarks.uses_module then
-        backup_whitelist()
-        globals_within_module = true
-        if remarks.strict then
-            whitelist = {}
-        end
+        delayed_whitelist_clear = remarks.module_line
     end
 
-    if globals_within_module then -- any global declares in file are ok
+    local function add_inner_globals ()
         backup_whitelist()
         for k,v in pairs(globals) do
             if v.isset then whitelist[v.name] = MODSCOPE end
         end
     end
 
-    if nil then
-        print 'WHITELIST'
-        for k,v in pairs(whitelist) do print(k,v) end
+    if globals_within_module then -- any global declares in file are ok
+        add_inner_globals()
     end
 
     table.sort(globals, function(a,b) return a.linenum < b.linenum end)
 
     for i,v in ipairs(globals) do
+        -- with module(), environment changes after module() call
+        if delayed_whitelist_clear and v.linenum > delayed_whitelist_clear then
+            backup_whitelist()
+            whitelist = {}
+            add_inner_globals()
+            delayed_whitelist_clear = nil
+        end
         local found, found_root = rindex(whitelist, v.name)
         if not (tolerant or found == MODSCOPE) and (found or found_root) and v.isset then
             stderr:write('lglob: ',file,':',v.linenum,': redefining global ',v.name,'\n')
