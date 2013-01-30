@@ -62,6 +62,11 @@ local function contents (file)
     return res
 end
 
+local function copy (src,dest)
+    for k,v in pairs(src) do dest[k] = v end
+    return dest
+end
+
 -- simple flag parser with filename globbing
 local function glob (args)
     if #args == 1 and args[1]:match '[%*%?]' then
@@ -69,8 +74,9 @@ local function glob (args)
         local wildcard = args[1]
         table.remove(args,1)
         local f = io.popen('dir /b '..wildcard)
+        local path = wildcard:match [[(.-\)[^\]+$]] or ''
         for line in f:lines() do
-            append(args,line)
+            append(args,path..line)
         end
         f:close()
     end
@@ -223,7 +229,9 @@ local function lwrapper (f)
     return ff
 end
 
-local function match_local(slot,ip)
+local locals = {}
+
+function locals.match(slot,ip)
     if locs and #locs > 0 then
         for _,loc in ipairs(locs) do
             if loc.idx==slot and loc.istart <= ip then -- and ip <= loc.istop then
@@ -233,13 +241,13 @@ local function match_local(slot,ip)
     end
 end
 
-local function add_known_local (loc)
+function locals.add_known (loc)
     loc.known = true
     if not known_locals then known_locals = {} end
     append(known_locals,loc)
 end
 
-local function match_known_local (name)
+function locals.match_known (name)
     if known_locals then
         for _,loc in ipairs(known_locals) do
             if loc.name == name then return loc end
@@ -247,11 +255,18 @@ local function match_known_local (name)
     end
 end
 
-local function match_upvalue (slot)
+function locals.match_upvalue (slot)
     if upvals and #upvals > 0 then
         for _,upv in ipairs(upvals) do
-            if upv.idx==slot then return upv end
+            if upv.idx == slot then return upv end
         end
+    end
+end
+
+function locals.get_upvalue (data)
+    local upv = locals.match_upvalue(data.argb)
+    if upv and locals.match_known(upv.name) then
+        return upv
     end
 end
 
@@ -291,13 +306,6 @@ local function getname (const)
     end
 end
 
-local function handle_upvalue (data)
-    local upv = match_upvalue(data.argb)
-    if upv and match_known_local(upv.name) then
-        return upv
-    end
-end
-
 local GETGLOB = lua52 and 'GETTABUP' or 'GETGLOBAL'
 local SETGLOB = lua52 and 'SETTABUP' or 'SETGLOBAL'
 
@@ -312,8 +320,8 @@ local function getglobals(fh)
             data = parse(fh:read())
             -- we track module require (LOADK value) and local alias (loc.name) if any
             if data.opname == 'CALL' then
-                local loc = match_local(data.arga,data.idx)
-                if loc then add_known_local(loc) end
+                local loc = locals.match(data.arga,data.idx)
+                if loc then locals.add_known(loc) end
                 append(requires,{linenum=last.linenum,name=loc and loc.name,alias=loc,module=name})
             end
         end
@@ -338,6 +346,14 @@ local function getglobals(fh)
         append(globals, {linenum=linenum,name=name,isset=isset})
     end
 
+    -- was this upvalue a reference to a known local? (5.2)
+    local function global_upvalue_ref52 (data,name,setting)
+        local upv = locals.get_upvalue(data)
+        if upv and name then
+            global_ref(data.linenum,upv.name..'.'..name,false)
+        end
+    end
+
     local main_function = true
     local line = fh:read()
 
@@ -346,9 +362,9 @@ local function getglobals(fh)
     if fh.get_return then
         local data = parse(fh:get_return())
         if data.argb == 2 then -- we _did_ actually return one value
-            local loc = match_local(data.arga,data.idx)
+            local loc = locals.match(data.arga,data.idx)
             if loc then
-                add_known_local(loc)
+                locals.add_known(loc)
                 remarks.simple_module = loc.name
             end
         end
@@ -368,16 +384,15 @@ local function getglobals(fh)
                 elseif name == 'module' then
                     check_module()
                 end
-            elseif upv then -- was this upvalue a reference to a known local? (5.2)
-                upv = handle_upvalue(data)
-                if upv and name then
-                    global_ref(data.linenum,upv.name..'.'..name,false)
-                end
+            elseif upv then
+                global_upvalue_ref52(data,name,false)
             end
          elseif opname == SETGLOB then
-            local name = getname(data.const)
-            if name then
+            local name,upv = getname(data.const)
+            if name and not upv then -- global access
                 global_ref(data.linenum,name,true)
+            elseif upv then
+                global_upvalue_ref52(data,name,true)
             end
         elseif opname == 'GETTABLE' or opname == 'SETTABLE' then
             local setting = data.opname=='SETTABLE'
@@ -391,7 +406,7 @@ local function getglobals(fh)
                     last = nil
                 end
             else -- refering to a known require alias local directly
-                local loc = match_local(data[reg],data.idx)
+                local loc = locals.match(data[reg],data.idx)
                 -- we want to put out 'global' references for known local module access.
                 if loc and data.const and loc.known then
                     local name = stripq(data.const)
@@ -403,7 +418,7 @@ local function getglobals(fh)
             end
         elseif opname == 'GETUPVAL' then
             -- was this upvalue a reference to a known local? (5.1)
-            local upv = handle_upvalue(data)
+            local upv = locals.get_upvalue(data)
             if upv then
                 data.gname = upv.name
                 last = data -- will be followed by GETTABLE...
@@ -502,6 +517,11 @@ local function splitname (name)
     return name:match '^([^.]+)%.([^%.]+)$'
 end
 
+local function module_name (file)
+    local basename = file:match '[^\\/]+$' -- filename bit
+    return splitname(basename) -- strip extension
+end
+
 local last_pkg
 
 local function dump_module (name,entries)
@@ -536,15 +556,13 @@ local function check_globals (file, dump_entries)
 
     local function backup_whitelist ()
         if not backed_up then
-            local oldw = whitelist
-            whitelist = {}
-            for k,v in pairs(oldw) do whitelist[k] = v end
+            whitelist = copy(whitelist,{})
             backed_up = true
         end
     end
 
     local function add_inner_globals (wl,refs)
-        for k,v in pairs(globals) do if v.isset then
+        for _,v in ipairs(globals) do if v.isset then
             wl[v.name] = refs and v or MODSCOPE
         end end
     end
@@ -553,36 +571,31 @@ local function check_globals (file, dump_entries)
         for _,item in ipairs(requires) do
             if dump then print('requiring',item.module) end
             local ok,mod
-            if require_whitelist then
+            if require_whitelist then -- resolve module in this table
                 local pkg,name = splitname(item.module)
                 local base = require_whitelist
-                if pkg then
-                    base = base[pkg]
-                else
-                    name = item.module
-                end
+                if pkg then base = base[pkg] else name = item.module end
                 mod = base[name]
                 ok = mod ~= nil
-            else
+            else -- actual direct loading of module!
                 ok,mod = pcall(require,item.module)
             end
             if not ok then
                 stderr:write('warning: could not require "',item.module,'"\n')
-            elseif item.alias then
+            elseif item.alias then -- set to a local; make it available
                 backup_whitelist()
                 whitelist[item.name] = mod
             end
         end
     end
 
-    if remarks.simple_module then
+    if remarks.simple_module then -- module not using module() or _ENV
         if dump then print('simple module:',remarks.simple_module) end
-        local modname,modt,entries = remarks.simple_module
-        backup_whitelist()
-        modt, entries = {},{}
+        local modname,modt,entries = remarks.simple_module,{},{}
         -- module goes into whitelist as a table containing all module exports
+        backup_whitelist()
         whitelist[modname] = modt
-        for k,v in pairs(globals) do if v.isset then
+        for _,v in ipairs(globals) do if v.isset then
             local name = v.name
             local mod,entry = splitname(name)
             if mod == modname then
@@ -591,27 +604,23 @@ local function check_globals (file, dump_entries)
             end
         end end
         if dump_entries then
-            return dump_module(modname,entries)
+            return dump_module(module_name(file),entries)
         end
     end
 
     local delayed_whitelist_clear
     if not tolerant and remarks.uses_module then
         if not dump_entries then
-            if remarks.strict then
+            if remarks.strict then -- just module(...) !
                 delayed_whitelist_clear = remarks.module_line
-            else
+            else -- module(package.seeall)
                 globals_within_module = true
             end
         else
             local entries = {}
+            local name = remarks.module_name or module_name(file)
             add_inner_globals(entries,true)
-            local name = remarks.module_name
-            if not name then
-                local basename = file:match '[^\\/]+$'
-                name = splitname(basename)
-            end
-            return dump_module(name or 'que?',entries)
+            return dump_module(name,entries)
         end
     end
 
@@ -623,7 +632,7 @@ local function check_globals (file, dump_entries)
     table.sort(globals, function(a,b) return a.linenum < b.linenum end)
 
     for i,v in ipairs(globals) do
-        -- with module(), environment changes after module() call
+        -- with module(), environment changes after the call
         if delayed_whitelist_clear and v.linenum > delayed_whitelist_clear then
             backup_whitelist()
             whitelist = {}
@@ -679,11 +688,7 @@ if exists('global.whitelist') then
     extra_whitelist = assertq(evalfile 'global.whitelist')
 end
 
-if extra_whitelist then
-    for k,v in pairs(extra_whitelist) do
-        whitelist[k] = v
-    end
-end
+if extra_whitelist then copy(extra_whitelist,whitelist) end
 
 local ok = true
 for _,a in ipairs(args) do

@@ -1,5 +1,5 @@
--- Penlight whitelist generated with lglob -x -d -p pl *.lua in PL dir
--- file app.lua
+-- Penlight whitelist using 'lglob -x -d -p pl \dev\lua\Penlight\lua\pl\*.lua > penlight.wlist'
+-- file \dev\lua\Penlight\lua\pl\app.lua
 pl = {}
 pl.app = {
     appfile = 53,
@@ -8,7 +8,7 @@ pl.app = {
     require_here = 28,
     parse_args = 109,
 }
--- file array2d.lua
+-- file \dev\lua\Penlight\lua\pl\array2d.lua
 pl.array2d = {
     swap_rows = 205,
     range = 300,
@@ -37,20 +37,20 @@ pl.array2d = {
     extract_cols = 232,
     map2 = 112,
 }
--- file class.lua
+-- file \dev\lua\Penlight\lua\pl\class.lua
 pl.class = {
     properties = 151,
 }
--- file comprehension.lua
+-- file \dev\lua\Penlight\lua\pl\comprehension.lua
 pl.comprehension = {
     new = 284,
 }
--- file config.lua
+-- file \dev\lua\Penlight\lua\pl\config.lua
 pl.config = {
     read = 103,
     lines = 56,
 }
--- file data.lua
+-- file \dev\lua\Penlight\lua\pl\data.lua
 pl.data = {
     read = 212,
     write = 349,
@@ -58,7 +58,7 @@ pl.data = {
     filter = 631,
     new = 386,
 }
--- file Date.lua
+-- file \dev\lua\Penlight\lua\pl\Date.lua
 pl.Date = {
     __lt = 273,
     __eq = 268,
@@ -76,7 +76,7 @@ pl.Date = {
     is_weekend = 206,
     add = 214,
 }
--- file dir.lua
+-- file \dev\lua\Penlight\lua\pl\dir.lua
 pl.dir = {
     getdirectories = 106,
     rmtree = 317,
@@ -91,7 +91,7 @@ pl.dir = {
     clonetree = 374,
     walk = 301,
 }
--- file file.lua
+-- file \dev\lua\Penlight\lua\pl\file.lua
 pl.file = {
     access_time = 50,
     copy = 36,
@@ -102,7 +102,7 @@ pl.file = {
     move = 44,
     read = 20,
 }
--- file func.lua
+-- file \dev\lua\Penlight\lua\pl\func.lua
 pl.func = {
     compose = 327,
     register = 143,
@@ -130,8 +130,8 @@ pl.func = {
     _ = 72,
     _2 = 60,
 }
--- file init.lua
--- file input.lua
+-- file \dev\lua\Penlight\lua\pl\init.lua
+-- file \dev\lua\Penlight\lua\pl\input.lua
 pl.input = {
     numbers = 82,
     create_getter = 59,
@@ -139,7 +139,7 @@ pl.input = {
     words = 90,
     alltokens = 32,
 }
--- file lapp.lua
+-- file \dev\lua\Penlight\lua\pl\lapp.lua
 pl.lapp = {
     quit = 56,
     process_options_string = 167,
@@ -150,7 +150,7 @@ pl.lapp = {
     callback = 42,
     show_usage_error = 51,
 }
--- file lexer.lua
+-- file \dev\lua\Penlight\lua\pl\lexer.lua
 pl.lexer = {
     lua = 287,
     insert = 222,
@@ -164,7 +164,7 @@ pl.lexer = {
     lineno = 250,
     cpp = 321,
 }
--- file List.lua
+-- file \dev\lua\Penlight\lua\pl\List.lua
 pl.List = {
     transform = 506,
     index = 197,
@@ -213,8 +213,8 @@ pl.List = {
     reduce = 544,
     push = 122,
 }
--- file luabalanced.lua
-pl.M = {
+-- file \dev\lua\Penlight\lua\pl\luabalanced.lua
+pl.luabalanced = {
     match_expression = 183,
     match_bracketed = 108,
     gsub = 261,
@@ -222,7 +222,7 @@ pl.M = {
     match_explist = 220,
     match_string = 62,
 }
--- file Map.lua
+-- file \dev\lua\Penlight\lua\pl\Map.lua
 pl.Map = {
     values = 50,
     set = 79,
@@ -238,14 +238,14 @@ pl.Map = {
     iter = 53,
     get = 86,
 }
--- file MultiMap.lua
+-- file \dev\lua\Penlight\lua\pl\MultiMap.lua
 pl.MultiMap = {
     _init = 25,
     _name = 23,
     update = 33,
     set = 51,
 }
--- file operator.lua
+-- file \dev\lua\Penlight\lua\pl\operator.lua
 pl.operator = {
     gt = 64,
     match = 166,
@@ -272,7 +272,7 @@ pl.operator = {
     pow = 112,
     add = 84,
 }
--- file OrderedMap.lua
+-- file \dev\lua\Penlight\lua\pl\OrderedMap.lua
 pl.OrderedMap = {
     _name = 17,
     values = 108,
@@ -286,7 +286,7 @@ pl.OrderedMap = {
     iter = 121,
     set = 68,
 }
--- file path.lua
+-- file \dev\lua\Penlight\lua\pl\path.lua
 pl.path = {
     is_windows = 109,
     getmtime = 93,
@@ -321,12 +321,12 @@ pl.path = {
     dir = 36,
     getctime = 99,
 }
--- file permute.lua
+-- file \dev\lua\Penlight\lua\pl\permute.lua
 pl.permute = {
     iter = 41,
     table = 55,
 }
--- file pretty.lua
+-- file \dev\lua\Penlight\lua\pl\pretty.lua
 pl.pretty = {
     number = 257,
     read = 41,
@@ -334,7 +334,7 @@ pl.pretty = {
     load = 72,
     dump = 234,
 }
--- file seq.lua
+-- file \dev\lua\Penlight\lua\pl\seq.lua
 pl.seq = {
     import = 539,
     last = 443,
@@ -369,7 +369,7 @@ pl.seq = {
     minmax = 127,
     less_than = 31,
 }
--- file Set.lua
+-- file \dev\lua\Penlight\lua\pl\Set.lua
 pl.Set = {
     issempty = 128,
     values = 61,
@@ -392,7 +392,7 @@ pl.Set = {
     __sub = 102,
     union = 81,
 }
--- file sip.lua
+-- file \dev\lua\Penlight\lua\pl\sip.lua
 pl.sip = {
     pattern = 313,
     custom_pattern = 105,
@@ -404,14 +404,14 @@ pl.sip = {
     create_spec_fun = 210,
     compile = 250,
 }
--- file strict.lua
--- file stringio.lua
+-- file \dev\lua\Penlight\lua\pl\strict.lua
+-- file \dev\lua\Penlight\lua\pl\stringio.lua
 pl.stringio = {
     lines = 154,
     open = 150,
     create = 144,
 }
--- file stringx.lua
+-- file \dev\lua\Penlight\lua\pl\stringx.lua
 pl.stringx = {
     lines = 397,
     isdigit = 49,
@@ -445,7 +445,7 @@ pl.stringx = {
     rstrip = 335,
     isalpha = 42,
 }
--- file tablex.lua
+-- file \dev\lua\Penlight\lua\pl\tablex.lua
 pl.tablex = {
     transform = 332,
     values = 504,
@@ -490,11 +490,11 @@ pl.tablex = {
     reduce = 398,
     pairmap = 476,
 }
--- file template.lua
+-- file \dev\lua\Penlight\lua\pl\template.lua
 pl.template = {
     substitute = 77,
 }
--- file test.lua
+-- file \dev\lua\Penlight\lua\pl\test.lua
 pl.test = {
     assertraise = 76,
     assertmatch = 67,
@@ -504,7 +504,7 @@ pl.test = {
     tuple = 120,
     complain = 47,
 }
--- file text.lua
+-- file \dev\lua\Penlight\lua\pl\text.lua
 pl.text = {
     indent = 53,
     Template = 105,
@@ -513,7 +513,7 @@ pl.text = {
     fill = 100,
     dedent = 63,
 }
--- file utils.lua
+-- file \dev\lua\Penlight\lua\pl\utils.lua
 pl.utils = {
     execute = 277,
     _VERSION = 13,
@@ -549,8 +549,8 @@ pl.utils = {
     is_integer = 369,
     stdmt = 376,
 }
--- file xml.lua
-pl._M = {
+-- file \dev\lua\Penlight\lua\pl\xml.lua
+pl.xml = {
     tags = 187,
     tostring = 395,
     basic_parse = 522,
