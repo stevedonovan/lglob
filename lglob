@@ -232,9 +232,9 @@ end
 local locals = {}
 
 function locals.match(slot,ip)
-    if locs and #locs > 0 then
+    if locs then
         for _,loc in ipairs(locs) do
-            if loc.idx==slot and loc.istart <= ip then -- and ip <= loc.istop then
+            if loc.idx==slot and loc.istart <= ip and ip <= loc.istop then
                 return loc
             end
         end
@@ -247,20 +247,20 @@ function locals.add_known (loc)
     append(known_locals,loc)
 end
 
-function locals.match_known (name)
-    if known_locals then
-        for _,loc in ipairs(known_locals) do
-            if loc.name == name then return loc end
+local function find (t,value,field)
+    if t then
+        for _,loc in ipairs(t) do
+            if loc[field] == value then return loc end
         end
     end
 end
 
+function locals.match_known (name)
+    return find(known_locals,name,'name')
+end
+
 function locals.match_upvalue (slot)
-    if upvals and #upvals > 0 then
-        for _,upv in ipairs(upvals) do
-            if upv.idx == slot then return upv end
-        end
-    end
+    return find(upvals,slot,'idx')
 end
 
 function locals.get_upvalue (data)
@@ -379,7 +379,7 @@ local function getglobals(fh)
                 data.gname = name
                 last = data
                 global_ref(last.linenum,name,false)
-                if name == 'require' then -- collect requires for tolerant mode
+                if name == 'require' then -- collect requires for later loading
                     check_require()
                 elseif name == 'module' then
                     check_module()
