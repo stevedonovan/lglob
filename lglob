@@ -398,7 +398,9 @@ local function getglobals(fh)
             local setting = data.opname=='SETTABLE'
             local reg = setting and 'arga' or 'argb'
             -- looking up in a previous global or upvalue table
-            if last and data.const and last.gname and (data.idx-last.idx <= 2) and last.arga == data[reg] then
+            if last and data.const and last.gname
+            and data.linenum==last.linenum --(data.idx-last.idx <= 2)
+            and last.arga == data[reg] then
                 local name = stripq(data.const)
                 if name then
                     data.gname = last.gname .. '.' .. name
@@ -436,6 +438,8 @@ end
 -- If we fail, second return is true if we _did_ match the package.
 local function rindex(t, name)
     local top,last_t,ok = t
+    ok = t[name]
+    if ok~=nil then return true end
     for part in name:gmatch('[%w_]+') do
         last_t = t
         ok,t = pcall(function() return t[part] end)
@@ -660,7 +664,7 @@ if #args == 0 then quit 'must provide Lua files' end
 
 luac = args.luac or 'luac'
 dump = args.dump
-xlocal = args.x
+xlocal = true --args.x
 pkg = args.p
 
 if args.wl then
