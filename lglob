@@ -265,10 +265,14 @@ end
 
 local locals = {}
 
-function locals.match(slot,ip)
+-- find a local with a given slot valid for a particular line range.
+-- If we're at start, then match more promiscously!
+function locals.match(slot,ip,at_start)
     if locs then
         for _,loc in ipairs(locs) do
-            if loc.idx==slot and loc.istart <= ip and ip <= loc.istop then
+            if loc.idx==slot
+            and (at_start or loc.istart <= ip)
+            and ip <= loc.istop then
                 return loc
             end
         end
@@ -306,13 +310,17 @@ end
 
 -- parsing dissembly output lines from luac
 local function parse(line)
-    local idx,linenum,opname,arga,argb,extra =
-    line:match('^%s+(%d+)%s+%[(%d+)%]%s+(%w+)%s+([-%d]+)%s+([-%d]+)%s*(.*)')
+    local idx,linenum,opname,rest = line:match('^%s+(%d+)%s+%[(%d+)%]%s+(%w+)%s+(.+)')
+    local arga,argb,extra
     if idx then
         idx = tonumber(idx)
         linenum = tonumber(linenum)
-        arga = tonumber(arga)
-        argb = tonumber(argb)
+        -- JMP has a different structure...
+        arga, argb, extra = rest:match '([-%d]+)%s+([-%d]+)%s*(.*)'
+        if arga then
+            arga = tonumber(arga)
+            argb = tonumber(argb)
+        end
     end
     local argc, const
     if extra then
@@ -342,6 +350,7 @@ end
 
 local GETGLOB = lua52 and 'GETTABUP' or 'GETGLOBAL'
 local SETGLOB = lua52 and 'SETTABUP' or 'SETGLOBAL'
+local rindex
 
 local function getglobals(fh)
     local globals, requires, remarks = {},{},{}
@@ -418,6 +427,11 @@ local function getglobals(fh)
                     check_require()
                 elseif name == 'module' then
                     check_module()
+                else
+--~                 elseif rindex(name) then -- possible alias to global
+--~                     local loc = locals.match(data.arga,data.idx,true)
+--~                     print('?',name)
+--~                     if loc then print('+',loc.name); locals.add_known(loc) end
                 end
             elseif upv then
                 global_upvalue_ref52(data,name,false)
@@ -463,6 +477,7 @@ local function getglobals(fh)
         elseif opname == 'CALL' then
             if last then last.called = true end
         elseif next(data) == nil then -- end of function disassembly --
+            print(line)
             last = nil
             main_function = false
         end
@@ -471,9 +486,12 @@ local function getglobals(fh)
     return globals, requires, remarks
 end
 
--- look up a possibly qualified name (like table.concat) in the whitelist t
+local whitelist = _G
+
+-- look up a possibly qualified name (like table.concat) in the whitelist
 -- If we fail, second return is true if we _did_ match the package.
-local function rindex(t, name)
+function rindex(name)
+    t = whitelist
     local top,last_t,ok = t
     ok = t[name]
     if ok~=nil then return ok end
@@ -485,7 +503,6 @@ local function rindex(t, name)
     return t
 end
 
-local whitelist = _G
 local globals_within_module, load_requires
 local tolerant, extra_whitelist,require_whitelist = false, nil, nil
 local luac, xlocal, package
@@ -618,6 +635,7 @@ local function check_globals (file, args)
 
     local old_globals_within_module = globals_within_module
     local old_whitelist,backed_up = whitelist
+    local module_whitelist = {}
 
     local function backup_whitelist ()
         if not backed_up then
@@ -650,6 +668,7 @@ local function check_globals (file, args)
             elseif item.alias then -- set to a local; make it available
                 backup_whitelist()
                 whitelist[item.name] = mod
+                module_whitelist[item.name] = mod
             end
             if args.rd then
                 local m = {}
@@ -702,6 +721,7 @@ local function check_globals (file, args)
     if globals_within_module then -- any global declares in file are ok
         backup_whitelist()
         add_inner_globals(whitelist)
+        whitelist._M = module_whitelist
     end
 
     table.sort(globals, function(a,b) return a.linenum < b.linenum end)
@@ -710,11 +730,12 @@ local function check_globals (file, args)
         -- with module(), environment changes after the call
         if delayed_whitelist_clear and v.linenum > delayed_whitelist_clear then
             backup_whitelist()
-            whitelist = {}
+            whitelist = module_whitelist
             add_inner_globals(whitelist)
+            whitelist._M = module_whitelist
             delayed_whitelist_clear = nil
         end
-        local found, found_root = rindex(whitelist, v.name)
+        local found, found_root = rindex(v.name)
         if not (tolerant or found == MODSCOPE) and (found or found_root) and v.isset then
             stderr:write('lglob: ',file,':',v.linenum,': redefining global ',v.name,'\n')
             ok = false
