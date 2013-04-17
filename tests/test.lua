@@ -8,9 +8,9 @@ local cases = {
     {'tolerant.lua','-t',true,true},
     {'fine.lua','-wx nil',false},
     {'lj.lua','-w luajava.wlist',true},
-    {'localrequire.lua','-x',false},
-    {'new.lua','-x',false},
-    {'pltest.lua','-x -wl penlight.wlist',true},
+    {'localrequire.lua','',false},
+    {'new.lua','',false},
+    {'pltest.lua','-wl penlight.wlist',true},
     {'TestGlobal.lua','',true}
 }
 
