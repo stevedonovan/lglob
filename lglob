@@ -477,7 +477,6 @@ local function getglobals(fh)
         elseif opname == 'CALL' then
             if last then last.called = true end
         elseif next(data) == nil then -- end of function disassembly --
-            print(line)
             last = nil
             main_function = false
         end
