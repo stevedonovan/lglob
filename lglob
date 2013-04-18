@@ -201,6 +201,7 @@ local function fun_grabber(f)
             print('bad line',line)
             os.exit()
         end
+
         line = f:read() -- params,slots,upvalues,locals, etc
         line = f:read()
         -- cache the disassembly
@@ -209,7 +210,6 @@ local function fun_grabber(f)
             append(lines,line)
             line = f:read()
         end
-
 
         -- grab RETURN for module analysis
         if #lines > 1  and lines[#lines-1]:match 'RETURN' then
@@ -238,6 +238,8 @@ local function fun_grabber(f)
         dumpt(locs,'locs')
         dumpt(upvals,'upvals')
         line = f:read() -- blank line between functions
+
+        -- our iterator over all lines!
         for _,line in ipairs(lines) do
             yield(line)
         end
@@ -398,6 +400,27 @@ local function getglobals(fh)
         end
     end
 
+    local refs,just_added,was_added = {}
+
+    local function add_global_alias (slot,idx,name)
+        refs[slot] = name
+        just_added = true
+        was_added = true
+    end
+
+    local function process_global_aliases (this_idx)
+        if just_added then -- just after add_global_alias
+            just_added = false
+        elseif was_added then -- next instruction!
+            for slot, name in pairs(refs) do
+                local loc = locals.match(slot,this_idx)
+                if loc then locals.add_known(loc) end
+            end
+            refs = {}
+            was_added = false
+        end
+    end
+
     local main_function = true
     local line = fh:read()
 
@@ -428,10 +451,7 @@ local function getglobals(fh)
                 elseif name == 'module' then
                     check_module()
                 else
---~                 elseif rindex(name) then -- possible alias to global
---~                     local loc = locals.match(data.arga,data.idx,true)
---~                     print('?',name)
---~                     if loc then print('+',loc.name); locals.add_known(loc) end
+                    add_global_alias (data.arga,data.idx,name)
                 end
             elseif upv then
                 global_upvalue_ref52(data,name,false)
@@ -454,6 +474,9 @@ local function getglobals(fh)
                 if name then
                     data.gname = last.gname .. '.' .. name
                     global_ref(last.linenum,data.gname,setting)
+                    if not setting then
+                        add_global_alias (data.argb,data.idx,data.gname)
+                    end
                     last = nil
                 end
             else -- refering to a known require alias local directly
@@ -480,6 +503,7 @@ local function getglobals(fh)
             last = nil
             main_function = false
         end
+        process_global_aliases(data.idx or 0)
         line = fh:read()
     end
     return globals, requires, remarks
