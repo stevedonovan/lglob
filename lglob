@@ -13,6 +13,7 @@ local lua52 = _VERSION:match '5%.2$'
 local stderr = io.stderr
 
 local usage = [[
+Lua static global analyzer, vs 1.0
 usage: lglob [options]  <scripts>
     -t means "tolerant"; defined globals are ok (implies -g and -l)
     -g accept globals defined in a module
@@ -32,6 +33,7 @@ usage: lglob [options]  <scripts>
     -dump diagnostic dump
 
     If the env variable LGLOB_PARAM exists, it specifies extra flags
+    LGLOB_PATH can be used to specify a path for *.wlist files
     If globals.whitelist exists in same directory, use that implicitly.
     Unless tolerant, warn about altering known globals.
 ]]
@@ -281,8 +283,10 @@ function locals.match(slot,ip,at_start)
     end
 end
 
-function locals.add_known (loc)
+function locals.add_known (loc,name)
     loc.known = true
+    loc.refname = name or loc.name
+    --print('add',loc.name,loc.refname)
     if not known_locals then known_locals = {} end
     append(known_locals,loc)
 end
@@ -307,6 +311,40 @@ function locals.get_upvalue (data)
     local upv = locals.match_upvalue(data.argb)
     if upv and locals.match_known(upv.name) then
         return upv
+    end
+end
+
+local rindex
+local refs,just_added,was_added = {}
+
+function locals.add_global_alias (slot,idx,name,glob) --do return end
+    if glob then
+        local v = rindex(name)
+        if not v then return end
+        if type(v) ~= 'table' then return end
+    end
+    refs[slot] = name
+    just_added = true
+    was_added = true
+end
+
+function locals.process_global_aliases (data) --do return end
+    local this_idx = data.idx
+    if not this_idx then return end
+    if just_added then
+        just_added = false
+    elseif was_added then -- next instruction!
+        if data.opname ~= 'CALL' then
+            for slot, name in pairs(refs) do
+                local loc = locals.match(slot,this_idx)
+                if loc then
+                    locals.add_known(loc,name)
+                    --print('+',loc.name,name)
+                end
+            end
+        end
+        refs = {}
+        was_added = false
     end
 end
 
@@ -352,7 +390,7 @@ end
 
 local GETGLOB = lua52 and 'GETTABUP' or 'GETGLOBAL'
 local SETGLOB = lua52 and 'SETTABUP' or 'SETGLOBAL'
-local rindex
+
 
 local function getglobals(fh)
     local globals, requires, remarks = {},{},{}
@@ -400,26 +438,6 @@ local function getglobals(fh)
         end
     end
 
-    local refs,just_added,was_added = {}
-
-    local function add_global_alias (slot,idx,name)
-        refs[slot] = name
-        just_added = true
-        was_added = true
-    end
-
-    local function process_global_aliases (this_idx)
-        if just_added then -- just after add_global_alias
-            just_added = false
-        elseif was_added then -- next instruction!
-            for slot, name in pairs(refs) do
-                local loc = locals.match(slot,this_idx)
-                if loc then locals.add_known(loc) end
-            end
-            refs = {}
-            was_added = false
-        end
-    end
 
     local main_function = true
     local line = fh:read()
@@ -451,7 +469,7 @@ local function getglobals(fh)
                 elseif name == 'module' then
                     check_module()
                 else
-                    add_global_alias (data.arga,data.idx,name)
+                    locals.add_global_alias (data.arga,data.idx,name,true)
                 end
             elseif upv then
                 global_upvalue_ref52(data,name,false)
@@ -475,7 +493,7 @@ local function getglobals(fh)
                     data.gname = last.gname .. '.' .. name
                     global_ref(last.linenum,data.gname,setting)
                     if not setting then
-                        add_global_alias (data.argb,data.idx,data.gname)
+                        locals.add_global_alias (data.argb,data.idx,data.gname)
                     end
                     last = nil
                 end
@@ -485,7 +503,7 @@ local function getglobals(fh)
                 if loc and data.const and loc.known then
                     local name = stripq(data.const)
                     if name then
-                        data.gname = loc.name .. '.' .. name
+                        data.gname = loc.refname .. '.' .. name
                         global_ref(data.linenum,data.gname,setting)
                     end
                 end
@@ -503,7 +521,7 @@ local function getglobals(fh)
             last = nil
             main_function = false
         end
-        process_global_aliases(data.idx or 0)
+        locals.process_global_aliases(data)
         line = fh:read()
     end
     return globals, requires, remarks
@@ -514,7 +532,7 @@ local whitelist = _G
 -- look up a possibly qualified name (like table.concat) in the whitelist
 -- If we fail, second return is true if we _did_ match the package.
 function rindex(name)
-    t = whitelist
+    local t = whitelist
     local top,last_t,ok = t
     ok = t[name]
     if ok~=nil then return ok end
