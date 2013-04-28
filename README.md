@@ -75,7 +75,7 @@ This is the output if we leave out the `local` in front of the function:
 
 lglob by default is strict about the use of globals - it sees both a set and a get
 of an unknown global. The `-g` flag makes it accept globals which have been set
-in the file. The flag `-t` (for _tolerant_) implies both `-l` and `-g`. Usually you
+in the file; the flag `-t` for _tolerant_ is an alias. Usually you
 should strive to use `local` compulsively if you want to write Lua that scales
 beyond a dozen-line script, so this easy-going approach is not the default!
 
@@ -326,7 +326,7 @@ return M
 Obviously lglob cannot deal with any dynamic modification of the environment, such as using `setmetatable`.
 
 
-## Generating WHitelists from Module Contents and requires
+## Generating Whitelists from Module Contents and requires
 
 The `-d` flag dumps all exported contents of a module; the names are set to
 their linenumbers, which can be useful, and it is in the right format for
