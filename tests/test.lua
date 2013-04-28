@@ -11,9 +11,13 @@ local cases = {
     {'localrequire.lua','',false},
     {'new.lua','',false},
     {'pltest.lua','-wl penlight.wlist',true},
+    {'testwl.lua','-wl basic.wlist',false},
     {'TestGlobal.lua','',true},
     {'alias.lua','',false},
     {'lhs.lua','',false},
+    {'mod5x.lua','',false},
+    {'mod52.lua','',false,true},
+    {'plglobal.lua','',false}
 }
 
 for _,case in ipairs(cases) do

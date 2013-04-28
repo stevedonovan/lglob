@@ -6,4 +6,5 @@ local function boo()
   return io.print
 end
 
+--~ lglob: alias.lua:3: undefined get io.print
 --~ lglob: alias.lua:6: undefined get io.print
