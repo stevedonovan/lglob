@@ -529,17 +529,23 @@ end
 
 local whitelist = _G
 
+local function safe_index (t,sym)
+    local ok,val = pcall(function() return t[sym] end)
+    if not ok then val = nil end
+    return val
+end
+
 -- look up a possibly qualified name (like table.concat) in the whitelist
 -- If we fail, second return is true if we _did_ match the package.
 function rindex(name)
     local t = whitelist
     local top,last_t,ok = t
-    ok = t[name]
+    ok = safe_index(t,name)
     if ok~=nil then return ok end
     for part in name:gmatch('[%w_]+') do
         last_t = t
-        ok,t = pcall(function() return t[part] end)
-        if not ok or t == nil then return nil, last_t ~= top end
+        t = safe_index(t,part)
+        if t == nil then return nil, last_t ~= top end
     end
     return t
 end
