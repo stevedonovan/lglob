@@ -726,7 +726,7 @@ local function check_globals (file, args)
     if load_requires then -- any globals from require(mod) are ok
         for _,item in ipairs(requires) do
             if dump then print('requiring',item.module) end
-            local ok,mod, injected
+            local ok,mod,names,injected
             if require_whitelist then -- resolve module in this table
                 local pkg,name = splitname(item.module)
                 local base = require_whitelist
