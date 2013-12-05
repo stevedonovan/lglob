@@ -37,7 +37,7 @@ for _,case in ipairs(cases) do
             -- grab the expected result from appropriate comments
             local testr = {}
             for line in ff:lines() do
-                local x = line:match '%-%-~ (.+)'
+                local x = line:match '%-%-~ ([^\r]+)'
                 if x then table.insert(testr,x) end
             end
             -- which we expect to match!
