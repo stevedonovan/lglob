@@ -31,6 +31,7 @@ usage: lglob [options]  <scripts>
     -ld <line> bytecode dump at given line
     -luac <prog> set luac to use
     -dump diagnostic dump
+    -v verbose
 
     If the env variable LGLOB_PARAM exists, it specifies extra flags
     LGLOB_PATH can be used to specify a path for *.wlist files
@@ -152,7 +153,7 @@ end
 -- Lua 5.1/5.2 dofile with optional environment
 local load = load
 if not lua52 then
-     function load(str,src,mode,env)
+    function load(str,src,mode,env)
         local chunk,err = loadstring(str,src)
         if err then return nil,err end
         setfenv(chunk, env)
@@ -290,7 +291,7 @@ function locals.match(slot,ip,at_start)
     if locs then
         for _,loc in ipairs(locs) do
             if loc.idx==slot
-            and (at_start or loc.istart <= ip)
+            and (at_start or loc.istart < ip)
             and ip <= loc.istop then
                 return loc
             end
@@ -301,7 +302,6 @@ end
 function locals.add_known (loc,name)
     loc.known = true
     loc.refname = name or loc.name
-    --print('add',loc.name,loc.refname)
     if not known_locals then known_locals = {} end
     append(known_locals,loc)
 end
@@ -355,7 +355,6 @@ function locals.process_global_aliases (data) --do return end
                 local loc = locals.match(slot,this_idx)
                 if loc then
                     locals.add_known(loc,name)
-                    --print('+',loc.name,name)
                 end
             end
         end
@@ -420,7 +419,7 @@ local function getglobals(fh)
             data = parse(fh:read())
             -- we track module require (LOADK value) and local alias (loc.name) if any
             if data.opname == 'CALL' then
-                local loc = locals.match(data.arga,data.idx)
+                local loc = locals.match(data.arga,data.idx,true)
                 if loc then locals.add_known(loc) end
                 append(requires,{linenum=last.linenum,name=loc and loc.name,alias=loc,module=name})
                 last.called = true
@@ -445,7 +444,7 @@ local function getglobals(fh)
         end
     end
 
-    local function global_ref (linenum,name,isset)
+    local function global_ref (linenum,name,isset)        
         if dump then print('ref',linenum,name,isset) end
         append(globals, {linenum=linenum,name=name,isset=isset})
     end
@@ -477,6 +476,7 @@ local function getglobals(fh)
     end
 
     while line do
+        local get_next = true
         local data = parse(line)
         local opname = data.opname
         if opname == GETGLOB then
@@ -533,6 +533,16 @@ local function getglobals(fh)
                     end
                 end
             end
+        elseif opname == 'CLOSURE' and not lua52 then 
+            -- a compound instruction in 5.1! In particular, ignore any GETUPVAL 
+            -- instructions following it...not foolproof, but we don't track 
+            -- the exceptions anyway...
+            repeat
+                line = fh:read()
+                data = parse(line)
+                opname = data.opname
+            until opname ~= 'MOVE' and opname ~= 'GETUPVAL'
+            get_next = false
         elseif opname == 'GETUPVAL' then
             -- was this upvalue a reference to a known local? (5.1)
             local upv = locals.get_upvalue(data)
@@ -554,7 +564,9 @@ local function getglobals(fh)
             at_start_function = true
         end
         locals.process_global_aliases(data)
-        line = fh:read()
+        if get_next then
+            line = fh:read()
+        end
     end
     return globals, requires, remarks
 end
@@ -707,6 +719,10 @@ local function quote (v)
     return '"'..v..'"'
 end
 
+local function print_error (file,item,...)
+    stderr:write('lglob: ',file,':',item.linenum,': ',...)
+end
+
 local function check_globals (file, args)
     local ok = true
     local globals, requires, remarks = process_file(file)
@@ -748,7 +764,7 @@ local function check_globals (file, args)
                     if #names == 0 then -- halleluja, good module!
                         injected = nil
                     elseif not (#names==1 and injected[names[1]]==mod) then
-                        stderr:write('warning: require "',item.module,'" added these globals: ',
+                        print_error(file,item,'warning: require "',item.module,'" added these globals: ',
                             table.concat(names,','),'\n')
                     else
                         injected = nil
@@ -756,7 +772,7 @@ local function check_globals (file, args)
                 end
             end
             if not ok then
-                stderr:write('warning: could not require ',quote(item.module),'\n')
+                print_error(file,item, 'warning: could not require ',quote(item.module),'\n')
             elseif item.alias then -- set to a local; make it available
                 backup_whitelist()
                 whitelist[item.name] = mod
@@ -829,10 +845,10 @@ local function check_globals (file, args)
         end
         local found, found_root = rindex(v.name)
         if not (tolerant or found == MODSCOPE) and (found or found_root) and v.isset then
-            stderr:write('lglob: ',file,':',v.linenum,': redefining global ',v.name,'\n')
+            print_error(file,v,'redefining global ',v.name,'\n')
             ok = false
         elseif not found then
-            stderr:write('lglob: ',file,':',v.linenum,': undefined ',v.isset and 'set' or 'get',' ',v.name,'\n')
+            print_error(file,v,'undefined ',v.isset and 'set' or 'get',' ',v.name,'\n')
             ok = false
         end
     end
@@ -848,7 +864,7 @@ if #args == 0 then quit 'must provide Lua files' end
 
 luac = args.luac or 'luac'
 dump = args.dump
-xlocal = true --args.x
+xlocal = true
 package = args.p
 
 local function load_whitelists (wwl)
@@ -859,7 +875,7 @@ local function load_whitelists (wwl)
     return wlist
 end
 
-if args.wl then
+if args.wl then -- lglob will use these instead of explicitly calling require
     if args.wl[1] == 'nil' then
         require_whitelist = {}
     else
@@ -875,22 +891,23 @@ if tolerant then args.g = true; args.l = true end
 globals_within_module = args.g
 load_requires = args.l
 
-if args.wx then
+if args.wx then -- no default whitelist! (usually it's _G)
     if args.wx[1] ~= 'nil' then args.w = args.wx end
     whitelist = {}
 end
 
-if args.w then
+if args.w then -- explicit lists of symbols which are considered OK
     extra_whitelist = load_whitelists(args.w)
 end
 
-if exists('global.whitelist') then
-    extra_whitelist = assertq(evalfile 'global.whitelist')
+if exists('global.whitelist') then -- plus any from default location
+    extra_whitelist = extra_whitelist or {}
+    assertq(evalfile 'global.whitelist',extra_whitelist)
 end
 
 if extra_whitelist then copy(extra_whitelist,whitelist) end
 
-if args.b then
+if args.b then -- remove blacklist entries from whitelist
     local blacklist = load_whitelists(args.b)
     for k in pairs(blacklist) do
         whitelist[k] = nil
@@ -900,7 +917,7 @@ end
 local ok = true
 for _,a in ipairs(args) do
     local res = true
-    if #args > 1 then print('-- file '..a) end
+    if #args > 1 and args.v then print('-- file '..a) end
     if args.gl or args.gd then
         dump_globals (a,args.gd)
     elseif args.ld then
