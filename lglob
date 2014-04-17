@@ -20,7 +20,7 @@ usage: lglob [options]  <scripts>
     -l call require() to track module exports
     -w <file...>, whitelist files containing symbol={entries..},
         which are added to _G.
-    -bl <file...> blacklist files
+    -b <file...> blacklist files
     -wx <file...> _exclusive_ whitelists, may be nil for none.
     -wl <file...> whitelists used to resolve any require() calls
     -gl list global references with line numbers
@@ -68,8 +68,23 @@ local function contents (file)
 end
 
 local function copy (src,dest)
+    dest = dest or {}
     for k,v in pairs(src) do dest[k] = v end
     return dest
+end
+
+local function diff (t1,t2)
+    local res = {}
+    for k,v in pairs(t2) do
+        if t1[k] == nil then res[k] = t2[k] end
+    end
+    return res
+end
+
+local function keys (t)
+    local res = {}
+    for k in pairs(t) do append(res,k) end
+    return res
 end
 
 -- simple flag parser with filename globbing
@@ -315,9 +330,10 @@ function locals.get_upvalue (data)
 end
 
 local rindex
-local refs,just_added,was_added = {}
+local refs,just_added,was_added,at_start_function = {}
 
 function locals.add_global_alias (slot,idx,name,glob) --do return end
+    if not at_start_function then return end
     if glob then
         local v = rindex(name)
         if not v then return end
@@ -345,6 +361,7 @@ function locals.process_global_aliases (data) --do return end
         end
         refs = {}
         was_added = false
+        at_start_function = false
     end
 end
 
@@ -411,17 +428,20 @@ local function getglobals(fh)
         end
     end
 
+    local function set_module (linenum,name,strict)
+        remarks.uses_module = true
+        remarks.module_line = linenum
+        remarks.module_name = name
+        if strict then
+            remarks.strict = true
+        end
+    end
+
     local function check_module ()
         local data = parse(fh:read())
         -- is this a 'strict' module or not? (Doesn't use package.seeall)
         if data.opname == 'LOADK' or data.opname == 'VARARG' then
-            remarks.uses_module = true
-            remarks.module_line = data.linenum
-            remarks.module_name = stripq(data.const)
-            data = parse(fh:read())
-            if data.opname == 'CALL' then
-                remarks.strict = true
-            end
+            set_module(data.linenum,stripq(data.const),data.opname=='CALL')
         end
     end
 
@@ -441,6 +461,7 @@ local function getglobals(fh)
 
     local main_function = true
     local line = fh:read()
+    at_start_function = true
 
     -- if the main function returned a local, then we assume
     -- that local is the module
@@ -477,7 +498,11 @@ local function getglobals(fh)
          elseif opname == SETGLOB then
             local name,upv = getname(data.const)
             if name and not upv then -- global access
-                global_ref(data.linenum,name,true)
+                if name == '_LGLOB' then -- marker for 'no globals beyond this point!'
+                    set_module(data.linenum,nil,true)
+                else
+                    global_ref(data.linenum,name,true)
+                end
             elseif upv then
                 global_upvalue_ref52(data,name,true)
             end
@@ -515,11 +540,18 @@ local function getglobals(fh)
                 data.gname = upv.name
                 last = data -- will be followed by GETTABLE...
             end
+        elseif opname == 'SETUPVAL' and lua52 then
+            -- detecting Lua 5.2 _ENV module setting --
+            local upv = locals.match_upvalue(data.argb)
+            if upv and upv.name == '_ENV' then
+                set_module(data.linenum,nil,true)
+            end
         elseif opname == 'CALL' then
             if last then last.called = true end
         elseif next(data) == nil then -- end of function disassembly --
             last = nil
             main_function = false
+            at_start_function = true
         end
         locals.process_global_aliases(data)
         line = fh:read()
@@ -700,7 +732,7 @@ local function check_globals (file, args)
     if load_requires then -- any globals from require(mod) are ok
         for _,item in ipairs(requires) do
             if dump then print('requiring',item.module) end
-            local ok,mod
+            local ok,mod,names,injected
             if require_whitelist then -- resolve module in this table
                 local pkg,name = splitname(item.module)
                 local base = require_whitelist
@@ -708,7 +740,20 @@ local function check_globals (file, args)
                 mod = base[name]
                 ok = mod ~= nil
             else -- actual direct loading of module!
+                local oldG,newG = copy(_G,{})
                 ok,mod = pcall(require,item.module)
+                if ok then
+                    injected = diff(oldG,_G)
+                    names = keys(injected)
+                    if #names == 0 then -- halleluja, good module!
+                        injected = nil
+                    elseif not (#names==1 and injected[names[1]]==mod) then
+                        stderr:write('warning: require "',item.module,'" added these globals: ',
+                            table.concat(names,','),'\n')
+                    else
+                        injected = nil
+                    end
+                end
             end
             if not ok then
                 stderr:write('warning: could not require ',quote(item.module),'\n')
@@ -815,7 +860,11 @@ local function load_whitelists (wwl)
 end
 
 if args.wl then
-    require_whitelist = load_whitelists(args.wl)
+    if args.wl[1] == 'nil' then
+        require_whitelist = {}
+    else
+        require_whitelist = load_whitelists(args.wl)
+    end
 end
 
 if xlocal or args.wl then args.l = true end
@@ -841,8 +890,8 @@ end
 
 if extra_whitelist then copy(extra_whitelist,whitelist) end
 
-if args.bl then
-    local blacklist = load_whitelists(args.bl)
+if args.b then
+    local blacklist = load_whitelists(args.b)
     for k in pairs(blacklist) do
         whitelist[k] = nil
     end

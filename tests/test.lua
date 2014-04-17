@@ -11,9 +11,13 @@ local cases = {
     {'localrequire.lua','',false},
     {'new.lua','',false},
     {'pltest.lua','-wl penlight.wlist',true},
+    {'testwl.lua','-wl basic.wlist',false},
     {'TestGlobal.lua','',true},
     {'alias.lua','',false},
     {'lhs.lua','',false},
+    {'mod5x.lua','',false},
+    {'mod52.lua','',false,true},
+    {'plglobal.lua','',false}
 }
 
 for _,case in ipairs(cases) do
@@ -30,18 +34,22 @@ for _,case in ipairs(cases) do
         end
         if not passed then
             local ff = io.open(file,'r')
-            -- grab the expected result from appropriate comments
-            local testr = {}
-            for line in ff:lines() do
-                local x = line:match '%-%-~ (.+)'
-                if x then table.insert(testr,x) end
-            end
-            -- which we expect to match!
-            testr = table.concat(testr,'\n')..'\n'
-            if testr ~= res then
-                print('case ',file,' did not fail properly!\n')
-                print('+'..testr)
-                print('-'..res)
+            if ff then
+                -- grab the expected result from appropriate comments
+                local testr = {}
+                for line in ff:lines() do
+                    local x = line:match '%-%-~ ([^\r]+)'
+                    if x then table.insert(testr,x) end
+                end
+                -- which we expect to match!
+                testr = table.concat(testr,'\n')..'\n'
+                if testr ~= res then
+                    print('case '..file..' did not fail properly!\n')
+                    print('+'..testr)
+                    print('-'..res)
+                end
+            else
+                print('case '..file..' not found!\n')
             end
         end
         f:close()
