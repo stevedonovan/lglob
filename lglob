@@ -458,7 +458,7 @@ local function getglobals(fh)
     end
 
 
-    local main_function = true
+    local main_function, module_loc = true
     local line = fh:read()
     at_start_function = true
 
@@ -471,6 +471,7 @@ local function getglobals(fh)
             if loc then
                 locals.add_known(loc)
                 remarks.simple_module = loc.name
+                module_loc = loc
             end
         end
     end
@@ -505,6 +506,11 @@ local function getglobals(fh)
                 end
             elseif upv then
                 global_upvalue_ref52(data,name,true)
+            end
+        elseif opname == 'NEWTABLE' then
+            -- range of module local must include the table ctor
+            if main_function and module_loc and data.arga == module_loc.idx then
+                module_loc.istart = data.idx
             end
         elseif opname == 'GETTABLE' or opname == 'SETTABLE' then
             local setting = data.opname=='SETTABLE'
