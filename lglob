@@ -157,7 +157,9 @@ local function parse_args ()
             end
         end
     end
+    local glob_args = glob(arg)
     local args = {}
+--~     for _,a in ipairs(args) do print(a) end; os.exit()
     local i = 1
     local params = os.getenv 'LGLOB_PARAM'
     if params then
@@ -165,8 +167,8 @@ local function parse_args ()
             append(arg,p)
         end
     end
-    while i <= #arg do
-        local a,val = arg[i]
+    while i <= #glob_args do
+        local a,val = glob_args[i]
         local flag = a:match '^%-(.+)'
         if flag then
             if not known_flags[flag] then quit('-'..flag..' unknown flag') end
@@ -188,9 +190,7 @@ local function parse_args ()
         end
         i = i + 1
     end
-    local res = glob(args)
---~     for _,a in ipairs(res) do print(a) end; os.exit()
-    return res
+    return args
 end
 
 -- Lua 5.1/5.2 dofile with optional environment
@@ -255,6 +255,7 @@ local return_line
 -- so we also cache this listing and feed it to the analyzer later
 local function fun_grabber(f)
     yield ''
+    known_locals = {}
     local line = true
     while line do -- forall functions
         line = f:read()
@@ -345,7 +346,6 @@ end
 function locals.add_known (loc,name)
     loc.known = true
     loc.refname = name or loc.name
-    if not known_locals then known_locals = {} end
     append(known_locals,loc)
 end
 
@@ -554,6 +554,7 @@ local function getglobals(fh)
             -- range of module local must include the table ctor
             if main_function and module_loc and data.arga == module_loc.idx then
                 module_loc.istart = data.idx
+                module_loc = nil
             end
         elseif opname == 'GETTABLE' or opname == 'SETTABLE' then
             local setting = data.opname=='SETTABLE'
@@ -620,7 +621,7 @@ local function getglobals(fh)
     return globals, requires, remarks
 end
 
-local whitelist = _G
+local whitelist = copy(_G)
 
 local function safe_index (t,sym)
     local ok,val = pcall(function() return t[sym] end)
