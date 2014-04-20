@@ -88,19 +88,61 @@ local function keys (t)
     return res
 end
 
+local function shell (cmd, how)
+    local f = io.popen(cmd)
+    local res = f:read(how or '*l')
+    f:close()
+    return res
+end
+
+local windows = package.config:sub(1,1)=='\\'
+
+local function getcwd ()
+    if windows then
+        return shell 'echo %CD%'
+    else
+        return os.getenv 'PWD'
+    end
+end
+
+local npath
+
+local function relative_path (p)
+    if windows then
+        if not npath then
+            npath = #getcwd()+2
+        end
+        return p:sub(npath)
+    else
+        return p:sub(3)
+    end
+end
+
 -- simple flag parser with filename globbing
 local function glob (args)
-    if #args == 1 and args[1]:match '[%*%?]' then
-        -- no shell globbing, it's Windows :(
-        local wildcard = args[1]
-        table.remove(args,1)
-        local f = io.popen('dir /b '..wildcard)
-        local path = wildcard:match [[(.-\)[^\]+$]] or ''
+    local res = {}
+    -- however, if we just get '.' then look for ALL Lua files in this dir tree
+    if #args == 1 and args[1] == '.' then
+        local f = io.popen(windows and 'dir /b /s *.lua' or "find . -name '*.lua'")
         for line in f:lines() do
-            append(args,path..line)
+            append(res,relative_path(line))
         end
         f:close()
+        return res
     end
+    for _,a in ipairs(args) do 
+        if a:match '[%*%?]' then -- no shell globbing, it's Windows :(
+            local f = io.popen('dir /b '..a)
+            local path = a:match [[(.-\)[^\]+$]] or ''
+            for line in f:lines() do
+                append(res,path..line)
+            end
+            f:close()
+        else
+            append(res,a)
+        end
+    end
+    return res
 end
 
 local function parse_args ()
@@ -146,8 +188,9 @@ local function parse_args ()
         end
         i = i + 1
     end
-    glob(args)
-    return args
+    local res = glob(args)
+--~     for _,a in ipairs(res) do print(a) end; os.exit()
+    return res
 end
 
 -- Lua 5.1/5.2 dofile with optional environment

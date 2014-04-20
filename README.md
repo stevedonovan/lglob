@@ -20,7 +20,7 @@ Apart from David's script, this utility was strongly inspired by
 Egil Hjelmeland's [globals](https://github.com/hjelmeland/globals) utility, which
 I found extremely useful in cleaning up Penlight after the move away from `module`.
 
-Kein-Hong Man's [No Frills Introduction to the Lua VM]http://luaforge.net/docman/83/98/ANoFrillsIntroToLua51VMInstructions.pdfl)
+Kein-Hong Man's [No Frills Introduction to the Lua VM](http://luaforge.net/docman/83/98/ANoFrillsIntroToLua51VMInstructions.pdf)
 has been indispensible for decoding the subtleties of some Lua VM instructions.
 
 ## Spellchecking
