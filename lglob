@@ -26,6 +26,7 @@ usage: lglob [options]  <scripts>
     -gl list global references with line numbers
     -gd generate locals for globals (e.g. 'local print=print')
     -d dump module contents in whitelist format
+    -dx dump all unknown global accesses 
     -p <package> name to use for qualifying symbols in module dump
     -rd dump requires in whitelist format
     -ld <line> bytecode dump at given line
@@ -35,7 +36,7 @@ usage: lglob [options]  <scripts>
 
     If the env variable LGLOB_PARAM exists, it specifies extra flags
     LGLOB_PATH can be used to specify a path for *.wlist files
-    If globals.whitelist exists in same directory, use that implicitly.
+    If global.whitelist exists in same directory, use that implicitly.
     Unless tolerant, warn about altering known globals.
 ]]
 
@@ -621,7 +622,7 @@ local function getglobals(fh)
     return globals, requires, remarks
 end
 
-local whitelist = copy(_G)
+local whitelist = _G
 
 local function safe_index (t,sym)
     local ok,val = pcall(function() return t[sym] end)
@@ -773,6 +774,8 @@ local function print_error (file,item,...)
     stderr:write('lglob: ',file,':',item.linenum,': ',...)
 end
 
+local global_accesses
+
 local function check_globals (file, args)
     local ok = true
     local globals, requires, remarks = process_file(file)
@@ -891,7 +894,7 @@ local function check_globals (file, args)
             whitelist = module_whitelist
             add_inner_globals(whitelist)
             whitelist._M = module_whitelist
-            delayed_whitelist_clear = nil
+            delayed_whitelist_clear = nil   
         end
         local found, found_root = rindex(v.name)
         if not (tolerant or found == MODSCOPE) and (found or found_root) and v.isset then
@@ -899,6 +902,9 @@ local function check_globals (file, args)
             ok = false
         elseif not found then
             print_error(file,v,'undefined ',v.isset and 'set' or 'get',' ',v.name,'\n')
+            if args.dx then
+                global_accesses[v.name] = true
+            end
             ok = false
         end
     end
@@ -931,6 +937,10 @@ if args.wl then -- lglob will use these instead of explicitly calling require
     else
         require_whitelist = load_whitelists(args.wl)
     end
+end
+
+if args.dx then
+    global_accesses = {}
 end
 
 if xlocal or args.wl then args.l = true end
@@ -977,4 +987,11 @@ for _,a in ipairs(args) do
     end
     ok = ok and res
 end
+
+if args.dx then
+    for k,v in pairs(global_accesses) do 
+        print('_G["'..k..'"] = true')
+    end
+end
+
 os.exit(ok and 0 or 1)
