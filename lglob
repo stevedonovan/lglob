@@ -815,6 +815,7 @@ local function check_globals (file, args)
                     if #names == 0 then -- halleluja, good module!
                         injected = nil
                     elseif not (#names==1 and injected[names[1]]==mod) then
+                        table.sort(names)
                         print_error(file,item,'warning: require "',item.module,'" added these globals: ',
                             table.concat(names,','),'\n')
                         for _,n in ipairs(names) do
