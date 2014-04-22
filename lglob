@@ -26,7 +26,7 @@ usage: lglob [options]  <scripts>
     -gl list global references with line numbers
     -gd generate locals for globals (e.g. 'local print=print')
     -d dump module contents in whitelist format
-    -dx dump all unknown global accesses 
+    -dx dump all unknown global accesses
     -p <package> name to use for qualifying symbols in module dump
     -rd dump requires in whitelist format
     -ld <line> bytecode dump at given line
@@ -121,8 +121,8 @@ end
 
 -- simple flag parser with filename globbing
 local function glob (args)
-    local res = {}    
-    for _,a in ipairs(args) do 
+    local res = {}
+    for _,a in ipairs(args) do
         if a == '.' then -- if we just get '.' then look for ALL Lua files in this dir tree
             local f = io.popen(windows and 'dir /b /s *.lua' or "find . -name '*.lua'")
             for line in f:lines() do
@@ -485,7 +485,7 @@ local function getglobals(fh)
         end
     end
 
-    local function global_ref (linenum,name,isset)        
+    local function global_ref (linenum,name,isset)
         if dump then print('ref',linenum,name,isset) end
         append(globals, {linenum=linenum,name=name,isset=isset})
     end
@@ -581,9 +581,9 @@ local function getglobals(fh)
                     end
                 end
             end
-        elseif opname == 'CLOSURE' and not lua52 then 
-            -- a compound instruction in 5.1! In particular, ignore any GETUPVAL 
-            -- instructions following it...not foolproof, but we don't track 
+        elseif opname == 'CLOSURE' and not lua52 then
+            -- a compound instruction in 5.1! In particular, ignore any GETUPVAL
+            -- instructions following it...not foolproof, but we don't track
             -- the exceptions anyway...
             repeat
                 line = fh:read()
@@ -637,6 +637,7 @@ function rindex(name)
     for part in name:gmatch('[%w_]+') do
         last_t = t
         t = safe_index(t,part)
+
         if t == nil then return nil, last_t ~= top end
     end
     return t
@@ -774,7 +775,7 @@ end
 local global_accesses
 
 local function check_globals (file, args)
-    local ok = true
+    local ok, escaped_globals = true, {}
     local globals, requires, remarks = process_file(file)
     if not globals then return end -- failed, dammit!
 
@@ -816,6 +817,9 @@ local function check_globals (file, args)
                     elseif not (#names==1 and injected[names[1]]==mod) then
                         print_error(file,item,'warning: require "',item.module,'" added these globals: ',
                             table.concat(names,','),'\n')
+                        for _,n in ipairs(names) do
+                            append(escaped_globals, n)
+                        end
                     else
                         injected = nil
                     end
@@ -847,6 +851,7 @@ local function check_globals (file, args)
         -- module goes into whitelist as a table containing all module exports
         backup_whitelist()
         whitelist[modname] = modt
+
         for _,v in ipairs(globals) do if v.isset then
             local name = v.name
             local mod,entry = splitname(name)
@@ -882,6 +887,9 @@ local function check_globals (file, args)
         whitelist._M = module_whitelist
     end
 
+    -- handles case where require() is leaking globals!
+    for _,a in ipairs(escaped_globals) do whitelist[a] = true end
+
     table.sort(globals, function(a,b) return a.linenum < b.linenum end)
 
     for i,v in ipairs(globals) do
@@ -891,7 +899,7 @@ local function check_globals (file, args)
             whitelist = module_whitelist
             add_inner_globals(whitelist)
             whitelist._M = module_whitelist
-            delayed_whitelist_clear = nil   
+            delayed_whitelist_clear = nil
         end
         local found, found_root = rindex(v.name)
         if not (tolerant or found == MODSCOPE) and (found or found_root) and v.isset then
@@ -986,7 +994,7 @@ for _,a in ipairs(args) do
 end
 
 if args.dx then
-    for k,v in pairs(global_accesses) do 
+    for k,v in pairs(global_accesses) do
         print('_G["'..k..'"] = true')
     end
 end

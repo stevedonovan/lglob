@@ -127,6 +127,9 @@ $ lglob -w luajava.wlist lj.lua
 The whitelist may contain any number of these definitions, in plain Lua style
 (functions may be defined on the top level as well)
 
+If the special file `global.whitelist` exists in the same directory as lglob invocation,
+then this is pulled in with an implicit `-w`.
+
 When dealing with a custom Lua environment, not all of the usual globals may be available.
 There are two ways to handle this. The `-wx` flag works in a similar way to `-w`,
 but provides an _exclusive_ whitelist that overrides the existing one.  Or you can define
@@ -343,6 +346,18 @@ $ lglob -d new.lua
     one = 8,
     two = 12,
 }
+```
+
+The `-dx` flag applies to a full lglob invocation and captures all the 'exceptions', which
+you have deemed harmless:
+
+```
+~/lua/Penlight/lua$ lglob -dx . > global.whitelist
+.....
+~/lua/Penlight/lua$ cat global.whitelist
+_G["debug.upvaluejoin"] = true
+_G["lapp.slack"] = true
+_G["utils.pack"] = true
 ```
 
 The tests directory has a full whitelist for the Penlight library, analysed with

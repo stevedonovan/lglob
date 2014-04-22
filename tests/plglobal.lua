@@ -1,4 +1,4 @@
-require 'lfs'
+local lfs = require 'lfs'
 require 'globmod'
 print(lfs.currendir())
 print(answer())
