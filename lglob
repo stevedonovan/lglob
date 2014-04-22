@@ -121,18 +121,15 @@ end
 
 -- simple flag parser with filename globbing
 local function glob (args)
-    local res = {}
-    -- however, if we just get '.' then look for ALL Lua files in this dir tree
-    if #args == 1 and args[1] == '.' then
-        local f = io.popen(windows and 'dir /b /s *.lua' or "find . -name '*.lua'")
-        for line in f:lines() do
-            append(res,relative_path(line))
-        end
-        f:close()
-        return res
-    end
+    local res = {}    
     for _,a in ipairs(args) do 
-        if a:match '[%*%?]' then -- no shell globbing, it's Windows :(
+        if a == '.' then -- if we just get '.' then look for ALL Lua files in this dir tree
+            local f = io.popen(windows and 'dir /b /s *.lua' or "find . -name '*.lua'")
+            for line in f:lines() do
+                append(res,relative_path(line))
+            end
+            f:close()
+        elseif a:match '[%*%?]' then -- no shell globbing, it's Windows :(
             local f = io.popen('dir /b '..a)
             local path = a:match [[(.-\)[^\]+$]] or ''
             for line in f:lines() do
